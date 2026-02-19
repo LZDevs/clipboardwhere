@@ -6,6 +6,7 @@ import Combine
 final class PanelState: ObservableObject {
     @Published var selectedIndex = 0
     @Published var pasteRequested = false
+    @Published var toggleTab = false
     var filteredCount = 0
 
     func reset() {
@@ -141,6 +142,9 @@ final class PanelController {
             return nil
         case 36: // Return
             panelState.pasteRequested = true
+            return nil
+        case 48: // Tab
+            panelState.toggleTab = true
             return nil
         case 53: // Escape
             hide()

@@ -2,12 +2,15 @@
 
 A dead-simple clipboard history manager for macOS. Press **Cmd+Option+V** to bring up a floating panel, select from your copy history, and paste instantly — like Windows' Win+V.
 
+![ClipboardWhere](assets/screenshot.png)
+
 ## Features
 
 - **Global hotkey**: Cmd+Option+V opens clipboard history from anywhere
 - **Instant paste**: Select an item to paste it into the active app
 - **Search**: Filter clipboard history with live search
 - **Pin items**: Pin frequently used snippets so they're always available
+- **Tab to toggle**: Press Tab to switch between All and Pinned views
 - **Keyboard navigation**: Arrow keys to navigate, Enter to paste, Escape to close
 - **Click outside to dismiss**: Panel closes when you click anywhere else
 - **Persistence**: History survives app restarts (stored as JSON)
@@ -29,7 +32,7 @@ A dead-simple clipboard history manager for macOS. Press **Cmd+Option+V** to bri
 Requires **Xcode Command Line Tools** and **macOS 13+** (Ventura).
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/clipboardwhere.git
+git clone https://github.com/LZDevs/clipboardwhere.git
 cd clipboardwhere
 bash scripts/bundle.sh
 open build/ClipboardWhere.app
@@ -62,14 +65,16 @@ Each rebuild changes the app's code signature, which invalidates the Accessibili
 | Action | Shortcut |
 |---|---|
 | Open clipboard history | **Cmd+Option+V** |
-| Navigate items | **↑ / ↓** |
+| Navigate items | **Up / Down** |
 | Paste selected item | **Enter** or click |
+| Switch All / Pinned | **Tab** |
 | Close panel | **Escape** or click outside |
 | Quit | **Cmd+Q** |
 
 - Click the **menu bar icon** for options (show history, clear history, check accessibility, quit)
 - **Hover** over an item to see pin and delete icons
-- Switch between **All** and **Pinned** tabs at the bottom
+- Press **Tab** to toggle between **All** and **Pinned** views
+- Click the **(i)** icon at the bottom to visit the GitHub page
 
 ## Tech Stack
 

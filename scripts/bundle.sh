@@ -8,8 +8,9 @@ BUILD_DIR=".build/release"
 BUNDLE_DIR="${OUTPUT_DIR}/${APP_NAME}.app"
 CONTENTS_DIR="${BUNDLE_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
-DMG_DIR="${OUTPUT_DIR}/dmg"
 DMG_PATH="${OUTPUT_DIR}/${APP_NAME}-v${VERSION}.dmg"
+DMG_RW="${OUTPUT_DIR}/${APP_NAME}-rw.dmg"
+DMG_MOUNT="/tmp/clipboardwhere-dmg-$$"
 
 echo "==> Building ${APP_NAME} v${VERSION} (release)..."
 swift build -c release
@@ -21,32 +22,69 @@ mkdir -p "$MACOS_DIR"
 
 cp "${BUILD_DIR}/${APP_NAME}" "${MACOS_DIR}/${APP_NAME}"
 
-# Update version in Info.plist and copy
 sed -e "s/<string>1.0<\/string>/<string>${VERSION}<\/string>/" \
     "Resources/Info.plist" > "${CONTENTS_DIR}/Info.plist"
 
-# Ad-hoc code sign so macOS can identify the app for permissions
-echo "==> Code signing..."
+echo "==> Code signing (ad-hoc)..."
 codesign --force --deep --sign - "$BUNDLE_DIR"
 
-echo "==> Creating DMG..."
-rm -rf "$DMG_DIR"
+echo "==> Creating styled DMG..."
+rm -f "$DMG_PATH" "$DMG_RW"
 rm -f "${OUTPUT_DIR}"/${APP_NAME}-v*.dmg
-mkdir -p "$DMG_DIR"
 
-cp -R "$BUNDLE_DIR" "$DMG_DIR/"
-ln -s /Applications "$DMG_DIR/Applications"
+# Create writable DMG
+hdiutil create -size 50m -fs HFS+ -volname "$APP_NAME" "$DMG_RW"
+mkdir -p "$DMG_MOUNT"
+DEVICE=$(hdiutil attach "$DMG_RW" -mountpoint "$DMG_MOUNT" -nobrowse | head -1 | awk '{print $1}')
+cp -R "$BUNDLE_DIR" "$DMG_MOUNT/"
+ln -s /Applications "$DMG_MOUNT/Applications"
 
-hdiutil create \
-    -volname "${APP_NAME} v${VERSION}" \
-    -srcfolder "$DMG_DIR" \
-    -ov \
-    -format UDZO \
-    "$DMG_PATH"
+# Style the Finder window with drag-to-install layout
+echo "==> Styling DMG window..."
+osascript - "$DMG_MOUNT" <<'APPLESCRIPT' || echo "  (Finder styling skipped — AppleEvent timeout)"
+on run argv
+    set mountPath to POSIX file (item 1 of argv) as alias
+    tell application "Finder"
+        tell folder mountPath
+            open
+            delay 1
+            set current view of container window to icon view
+            set toolbar visible of container window to false
+            set statusbar visible of container window to false
+            set bounds of container window to {200, 200, 720, 500}
+            set theViewOptions to icon view options of container window
+            set arrangement of theViewOptions to not arranged
+            set icon size of theViewOptions to 128
+            set position of item "ClipboardWhere.app" of container window to {130, 140}
+            set position of item "Applications" of container window to {390, 140}
+            delay 1
+            close
+        end tell
+    end tell
+end run
+APPLESCRIPT
 
-rm -rf "$DMG_DIR"
+# Detach and convert to compressed DMG
+sleep 1
+sync
+hdiutil detach "$DEVICE" -force
+rmdir "$DMG_MOUNT" 2>/dev/null || true
+
+for i in $(seq 1 10); do
+    hdiutil info 2>/dev/null | grep -q "$DMG_RW" || break
+    sleep 1
+done
+
+hdiutil convert "$DMG_RW" -format UDZO -o "$DMG_PATH"
+rm -f "$DMG_RW"
 
 echo ""
-echo "Done! ${APP_NAME} v${VERSION}"
-echo "  App: ${BUNDLE_DIR}"
-echo "  DMG: ${DMG_PATH}"
+echo "================================================"
+echo "  ${APP_NAME} v${VERSION} built successfully!"
+echo ""
+echo "  App:  ${BUNDLE_DIR}"
+echo "  DMG:  ${DMG_PATH}"
+echo ""
+echo "  To install, open the DMG and drag to Applications."
+echo "  To launch now:  open ${BUNDLE_DIR}"
+echo "================================================"

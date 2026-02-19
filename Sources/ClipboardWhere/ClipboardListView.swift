@@ -112,10 +112,18 @@ struct ClipboardListView: View {
 
                 Spacer()
 
-                Text("↑↓ ⏎ ⎋")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 10))
-                    .padding(.trailing, 4)
+                Button(action: {
+                    if let url = URL(string: Constants.repoURL) {
+                        NSWorkspace.shared.open(url)
+                    }
+                }) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("About ClipboardWhere")
+                .padding(.trailing, 4)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -138,6 +146,13 @@ struct ClipboardListView: View {
         }
         .onChange(of: activeTab) { _ in
             panelState.filteredCount = filteredItems.count
+        }
+        .onChange(of: panelState.toggleTab) { toggle in
+            if toggle {
+                panelState.toggleTab = false
+                activeTab = activeTab == .all ? .pinned : .all
+                panelState.selectedIndex = 0
+            }
         }
         .onAppear {
             panelState.filteredCount = filteredItems.count
