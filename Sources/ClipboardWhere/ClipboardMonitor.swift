@@ -36,7 +36,18 @@ final class ClipboardMonitor {
             return
         }
 
-        guard let text = pasteboard.string(forType: .string), !text.isEmpty else { return }
-        store.add(text)
+        // Images first — copied images often include a text representation (filename/URL)
+        // that we don't want to capture instead of the actual image
+        if let tiffData = pasteboard.data(forType: .tiff),
+           let imageRep = NSBitmapImageRep(data: tiffData),
+           let pngData = imageRep.representation(using: .png, properties: [:]) {
+            store.addImage(pngData)
+            return
+        }
+
+        // Plain text
+        if let text = pasteboard.string(forType: .string), !text.isEmpty {
+            store.add(text)
+        }
     }
 }

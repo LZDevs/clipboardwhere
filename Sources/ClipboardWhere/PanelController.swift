@@ -7,11 +7,15 @@ final class PanelState: ObservableObject {
     @Published var selectedIndex = 0
     @Published var pasteRequested = false
     @Published var toggleTab = false
+    @Published var quickPastePinnedIndex: Int? = nil
     var filteredCount = 0
+    var isSearching = false
 
     func reset() {
         selectedIndex = 0
         pasteRequested = false
+        quickPastePinnedIndex = nil
+        isSearching = false
     }
 }
 
@@ -57,7 +61,7 @@ final class PanelController {
     }
 
     /// Hide the panel, reactivate the previous app, then paste
-    func hideAndPaste(_ text: String) {
+    func hideAndPaste(_ item: ClipboardItem) {
         removeMonitors()
         panel?.orderOut(nil)
 
@@ -68,7 +72,7 @@ final class PanelController {
 
         // Post paste notification after the previous app has time to regain focus
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            NotificationCenter.default.post(name: .pasteItem, object: text)
+            NotificationCenter.default.post(name: .pasteItem, object: item)
         }
     }
 
@@ -81,7 +85,7 @@ final class PanelController {
         let controller = self
         let listView = ClipboardListView(store: store, panelState: panelState,
             onDismiss: { [weak controller] in controller?.hide() },
-            onPaste: { [weak controller] text in controller?.hideAndPaste(text) }
+            onPaste: { [weak controller] item in controller?.hideAndPaste(item) }
         )
         let hostingView = NSHostingView(rootView: listView)
         panel?.contentView = hostingView
@@ -150,8 +154,31 @@ final class PanelController {
             hide()
             return nil
         default:
+            break
+        }
+
+        // Number key shortcuts
+        guard let chars = event.charactersIgnoringModifiers,
+              let number = Int(chars), number >= 1 else {
             return event
         }
+
+        // ⌘+number: paste pinned item (1-9)
+        if event.modifierFlags.contains(.command), number <= 9 {
+            panelState.quickPastePinnedIndex = number - 1
+            return nil
+        }
+
+        // Plain number (not searching): paste from current list (1-5)
+        if !event.modifierFlags.contains(.command),
+           !panelState.isSearching,
+           number <= 5 {
+            panelState.selectedIndex = number - 1
+            panelState.pasteRequested = true
+            return nil
+        }
+
+        return event
     }
 
     private func moveSelection(_ delta: Int) {

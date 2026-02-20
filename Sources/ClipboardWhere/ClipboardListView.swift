@@ -9,7 +9,7 @@ struct ClipboardListView: View {
     @ObservedObject var store: ClipboardStore
     @ObservedObject var panelState: PanelState
     let onDismiss: () -> Void
-    let onPaste: (String) -> Void
+    let onPaste: (ClipboardItem) -> Void
 
     @State private var searchText = ""
     @State private var activeTab: ClipboardTab = .all
@@ -20,7 +20,7 @@ struct ClipboardListView: View {
             return base
         }
         return base.filter {
-            $0.text.localizedCaseInsensitiveContains(searchText)
+            !$0.isImage && $0.text.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -58,16 +58,23 @@ struct ClipboardListView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 2) {
+                        LazyVStack(spacing: 0) {
                             ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
-                                ItemRow(
-                                    item: item,
-                                    isSelected: index == panelState.selectedIndex,
-                                    index: index,
-                                    onSelect: { onPaste(item.text) },
-                                    onPin: { store.togglePin(item) },
-                                    onDelete: { store.delete(item) }
-                                )
+                                VStack(spacing: 0) {
+                                    if index > 0 {
+                                        Divider()
+                                            .opacity(0.3)
+                                            .padding(.horizontal, 12)
+                                    }
+                                    ItemRow(
+                                        item: item,
+                                        isSelected: index == panelState.selectedIndex,
+                                        shortcutLabel: shortcutLabel(for: index),
+                                        onSelect: { onPaste(item) },
+                                        onPin: { store.togglePin(item) },
+                                        onDelete: { store.delete(item) }
+                                    )
+                                }
                                 .id(item.id)
                             }
                         }
@@ -136,12 +143,21 @@ struct ClipboardListView: View {
             if requested {
                 panelState.pasteRequested = false
                 if let item = filteredItems[safe: panelState.selectedIndex] {
-                    onPaste(item.text)
+                    onPaste(item)
+                }
+            }
+        }
+        .onChange(of: panelState.quickPastePinnedIndex) { index in
+            if let index = index {
+                panelState.quickPastePinnedIndex = nil
+                if let item = store.pinnedItems[safe: index] {
+                    onPaste(item)
                 }
             }
         }
         .onChange(of: searchText) { _ in
             panelState.selectedIndex = 0
+            panelState.isSearching = !searchText.isEmpty
             panelState.filteredCount = filteredItems.count
         }
         .onChange(of: activeTab) { _ in
@@ -161,6 +177,17 @@ struct ClipboardListView: View {
             panelState.filteredCount = filteredItems.count
         }
     }
+
+    private func shortcutLabel(for index: Int) -> String? {
+        guard !panelState.isSearching else { return nil }
+        if activeTab == .pinned && index < 9 {
+            return "\u{2318}\(index + 1)"
+        }
+        if activeTab == .all && index < 5 {
+            return "\(index + 1)"
+        }
+        return nil
+    }
 }
 
 // MARK: - Item Row
@@ -168,7 +195,7 @@ struct ClipboardListView: View {
 private struct ItemRow: View {
     let item: ClipboardItem
     let isSelected: Bool
-    let index: Int
+    let shortcutLabel: String?
     let onSelect: () -> Void
     let onPin: () -> Void
     let onDelete: () -> Void
@@ -177,8 +204,8 @@ private struct ItemRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            if index < 9 {
-                Text("⌘\(index + 1)")
+            if let label = shortcutLabel {
+                Text(label)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundColor(.secondary)
                     .frame(width: 28)
@@ -187,15 +214,10 @@ private struct ItemRow: View {
                 Spacer().frame(width: 28)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.preview)
-                    .font(.system(size: 13))
-                    .lineLimit(2)
-                    .foregroundColor(.primary)
-
-                Text(item.timestamp, style: .relative)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+            if item.isImage {
+                imageContent
+            } else {
+                textContent
             }
 
             Spacer()
@@ -238,6 +260,62 @@ private struct ItemRow: View {
         .onTapGesture {
             onSelect()
         }
+    }
+
+    private var textContent: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.preview)
+                .font(.system(size: 13))
+                .lineLimit(2)
+                .foregroundColor(.primary)
+
+            Text(relativeTime(item.timestamp))
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var imageContent: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                if let url = item.imageURL, let nsImage = NSImage(contentsOf: url) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: 50, maxHeight: 50)
+                        .cornerRadius(4)
+                } else {
+                    Image(systemName: "photo")
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary)
+                        .frame(width: 50, height: 50)
+                }
+
+                Text("Image")
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+            }
+
+            Text(relativeTime(item.timestamp))
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 60 { return "just now" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes) min ago" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours) hr ago" }
+        let days = hours / 24
+        if days == 1 { return "yesterday" }
+        if days < 30 { return "\(days) days ago" }
+        let months = days / 30
+        if months < 12 { return "\(months) mo ago" }
+        let years = months / 12
+        return "\(years) yr ago"
     }
 }
 

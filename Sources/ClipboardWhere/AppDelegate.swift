@@ -123,8 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] notification in
             guard let self = self,
-                  let text = notification.object as? String else { return }
-            PasteSimulator.paste(text, monitor: self.monitor)
+                  let item = notification.object as? ClipboardItem else { return }
+            PasteSimulator.paste(item, monitor: self.monitor)
         }
     }
 

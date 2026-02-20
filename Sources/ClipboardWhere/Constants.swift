@@ -4,7 +4,7 @@ enum Constants {
     static let maxItems = 50
     static let pollInterval: TimeInterval = 0.5
     static let appName = "ClipboardWhere"
-    static let version = "0.5.0"
+    static let version = "0.6.0"
     static let repoURL = "https://github.com/LZDevs/clipboardwhere"
 
     static let supportDir: URL = {
@@ -14,6 +14,10 @@ enum Constants {
 
     static let historyFile: URL = {
         supportDir.appendingPathComponent("history.json")
+    }()
+
+    static let imagesDir: URL = {
+        supportDir.appendingPathComponent("images")
     }()
 }
 
